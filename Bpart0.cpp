@@ -12,6 +12,8 @@
 
 using namespace std;
 
+extern bool g_is_fullscreen;
+
 // Estrutura de controle global
 struct Scanner {
     int current_index;
@@ -41,8 +43,6 @@ void process_key(Display* display, Window target_window, const string& key, SDL_
     else if (key == "Corrige") send_key(display, target_window, XK_BackSpace);
     else if (key == "Branco") send_key(display, target_window, XK_KP_Multiply);
 
-    cout << "Tecla enviada: " << key << endl;
-
     // Antes do efeito de piscar, limpar a fila de cliques para evitar eventos antigos
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -55,11 +55,9 @@ void process_key(Display* display, Window target_window, const string& key, SDL_
     // Efeito de piscar a borda azul na tecla escolhida
     for (int i = 0; i < 3; i++) {  // Piscar 3 vezes
         render_keys(renderer, font, -1);
-        SDL_RenderPresent(renderer);
         SDL_Delay(500);
 
         render_keys(renderer, font, scanner->current_index);
-        SDL_RenderPresent(renderer);
         SDL_Delay(500);
     }
 
@@ -75,7 +73,7 @@ void process_key(Display* display, Window target_window, const string& key, SDL_
 }
 
 // Lógica principal da varredura
-void run_scanning(Display* display, Window target_window, SDL_Renderer* renderer, TTF_Font* font) {
+int run_scanning(Display* display, Window target_window, SDL_Renderer* renderer, TTF_Font* font) {
     // Inicializa `scanner` corretamente
     scanner = new Scanner();
 
@@ -89,9 +87,16 @@ void run_scanning(Display* display, Window target_window, SDL_Renderer* renderer
     while (true) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT || (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
+            if (event.type == SDL_QUIT) return -1;
+            /* atalho global: F11 alterna fullscreen */
+            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_F11) {
+                g_is_fullscreen = !g_is_fullscreen;
+                Uint32 flag = g_is_fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0;
+                SDL_SetWindowFullscreen(SDL_GetWindowFromID(1), flag);
+            }
+            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
                 delete scanner;  // Libera a memória corretamente
-                return;
+                return 0;
             } else if (event.type == SDL_MOUSEBUTTONDOWN) {
                 process_key(display, target_window, keys[scanner->current_index].label, renderer, font);
                 last_time = SDL_GetTicks();

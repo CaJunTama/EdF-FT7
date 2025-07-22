@@ -67,10 +67,23 @@ void render_keys(SDL_Renderer* renderer, TTF_Font* font, int highlighted_index) 
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     SDL_RenderClear(renderer);
 
-    int x = 50, y = 50;
+    int winW, winH;
+    SDL_GetRendererOutputSize(renderer, &winW, &winH);
+
+    const int keyWSmall = 100, keyWBig = 180, keyH = 50, gap = 20;
+    const int cols = 5, rows = 3;
+
+    int totalWidth = cols * keyWSmall + (cols - 1) * gap;   // 5 botões pequenos, 4 espaços
+
+    int totalHeight = rows * keyH + (rows - 1) * gap;       // 3 linhas, 2 espaços
+
+    int x0 = (winW - totalWidth) / 2;
+    int y0 = (winH - totalHeight) / 2;
+
+    int x = x0, y = y0;
     for (size_t i = 0; i < keys.size(); i++) {
-        int width = (i >= 10) ? 180 : 100;
-        keys[i].rect = {x, y, width, 50};
+        int width = (i >= 10) ? keyWBig : keyWSmall;
+        keys[i].rect = {x, y, width, keyH};
 
         // Preenchimento da tecla
         SDL_SetRenderDrawColor(renderer, keys[i].color.r, keys[i].color.g, keys[i].color.b, keys[i].color.a);
@@ -89,9 +102,9 @@ void render_keys(SDL_Renderer* renderer, TTF_Font* font, int highlighted_index) 
             SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
 
             SDL_Rect top_border = {x - border_thickness, y - border_thickness, width + 2 * border_thickness, border_thickness};
-            SDL_Rect bottom_border = {x - border_thickness, y + 50, width + 2 * border_thickness, border_thickness};
-            SDL_Rect left_border = {x - border_thickness, y, border_thickness, 50};
-            SDL_Rect right_border = {x + width, y, border_thickness, 50};
+            SDL_Rect bottom_border = {x - border_thickness, y + keyH, width + 2 * border_thickness, border_thickness};
+            SDL_Rect left_border = {x - border_thickness, y, border_thickness, keyH};
+            SDL_Rect right_border = {x + width, y, border_thickness, keyH};
 
             SDL_RenderFillRect(renderer, &top_border);
             SDL_RenderFillRect(renderer, &bottom_border);
@@ -99,15 +112,12 @@ void render_keys(SDL_Renderer* renderer, TTF_Font* font, int highlighted_index) 
             SDL_RenderFillRect(renderer, &right_border);
         }
 
-        x += width + 20;
+        x += width + gap;
         if ((i + 1) % 5 == 0) {
-            x = 50;
-            y += 70;
+            x = x0;
+            y += keyH + gap;
         }
     }
-
-    SDL_Rect exit = {150, 260, 400, 60};
-    draw_text(renderer, font, "Pressione ESC para voltar", exit, BLACK);
 
     SDL_RenderPresent(renderer);
 }

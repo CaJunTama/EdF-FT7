@@ -11,6 +11,8 @@
 
 using namespace std;
 
+extern bool g_is_fullscreen;
+
 // Processa clique do mouse e simula pressionamento de tecla
 void handle_mouse_click(Display* display, Window target_window, int x, int y, SDL_Renderer* renderer, TTF_Font* font) {
     XSetInputFocus(display, target_window, RevertToParent, CurrentTime);
@@ -39,11 +41,9 @@ void handle_mouse_click(Display* display, Window target_window, int x, int y, SD
             // Efeito de piscar a tecla
             for (int j = 0; j < 3; j++) {
                 render_keys(renderer, font, -1);
-                SDL_RenderPresent(renderer);
                 SDL_Delay(500);
 
                 render_keys(renderer, font, i);
-                SDL_RenderPresent(renderer);
                 SDL_Delay(500);
             }
 
@@ -60,11 +60,17 @@ void handle_mouse_click(Display* display, Window target_window, int x, int y, SD
     }
 }
 
-void run_selection(Display* display, Window target_window, SDL_Renderer* renderer, TTF_Font* font) {
+int run_selection(Display* display, Window target_window, SDL_Renderer* renderer, TTF_Font* font) {
     while (true) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT || (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) return;
+            if (event.type == SDL_QUIT) return -1;
+            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_F11) {
+                g_is_fullscreen = !g_is_fullscreen;
+                Uint32 flag = g_is_fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0;
+                SDL_SetWindowFullscreen(SDL_GetWindowFromID(1), flag);
+            }
+            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) return 0;
             else if (event.type == SDL_MOUSEBUTTONDOWN) {
                 handle_mouse_click(display, target_window, event.button.x, event.button.y, renderer, font);
             }
