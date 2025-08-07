@@ -1,7 +1,10 @@
 #include "common.h"
 #include <unistd.h> // Para `usleep`
+#include <cmath>
 
 using namespace std;
+
+int g_scale_pct = 100;            // começa em 100 %
 
 // Definição única do vetor keys (evita múltiplas definições)
 vector<Key> keys = {
@@ -71,19 +74,23 @@ void render_keys(SDL_Renderer* renderer, TTF_Font* font, int highlighted_index) 
     SDL_GetRendererOutputSize(renderer, &winW, &winH);
 
     const int keyWSmall = 100, keyWBig = 180, keyH = 50, gap = 20;
+    int keyWSmallx  = static_cast<int>(lround(SZ(keyWSmall)));
+    int keyWBigx  = static_cast<int>(lround(SZ(keyWBig)));
+    int keyHx  = static_cast<int>(lround(SZ(keyH)));
+    int gapx = static_cast<int>(lround(SZ(gap)));
     const int cols = 5, rows = 3;
 
-    int totalWidth = cols * keyWSmall + (cols - 1) * gap;   // 5 botões pequenos, 4 espaços
+    int totalWidth = cols * keyWSmallx + (cols - 1) * gapx;   // 5 botões pequenos, 4 espaços
 
-    int totalHeight = rows * keyH + (rows - 1) * gap;       // 3 linhas, 2 espaços
+    int totalHeight = rows * keyHx + (rows - 1) * gapx;       // 3 linhas, 2 espaços
 
     int x0 = (winW - totalWidth) / 2;
     int y0 = (winH - totalHeight) / 2;
 
     int x = x0, y = y0;
     for (size_t i = 0; i < keys.size(); i++) {
-        int width = (i >= 10) ? keyWBig : keyWSmall;
-        keys[i].rect = {x, y, width, keyH};
+        int width = (i >= 10) ? keyWBigx : keyWSmallx;
+        keys[i].rect = {x, y, width, keyHx};
 
         // Preenchimento da tecla
         SDL_SetRenderDrawColor(renderer, keys[i].color.r, keys[i].color.g, keys[i].color.b, keys[i].color.a);
@@ -98,13 +105,13 @@ void render_keys(SDL_Renderer* renderer, TTF_Font* font, int highlighted_index) 
 
         // Destacar tecla selecionada com borda azul
         if (highlighted_index == static_cast<int>(i)) {
-            int border_thickness = 5;
+            int border_thickness = static_cast<int>(lround(SZ(5)));
             SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
 
             SDL_Rect top_border = {x - border_thickness, y - border_thickness, width + 2 * border_thickness, border_thickness};
-            SDL_Rect bottom_border = {x - border_thickness, y + keyH, width + 2 * border_thickness, border_thickness};
-            SDL_Rect left_border = {x - border_thickness, y, border_thickness, keyH};
-            SDL_Rect right_border = {x + width, y, border_thickness, keyH};
+            SDL_Rect bottom_border = {x - border_thickness, y + keyHx, width + 2 * border_thickness, border_thickness};
+            SDL_Rect left_border = {x - border_thickness, y, border_thickness, keyHx};
+            SDL_Rect right_border = {x + width, y, border_thickness, keyHx};
 
             SDL_RenderFillRect(renderer, &top_border);
             SDL_RenderFillRect(renderer, &bottom_border);
@@ -112,10 +119,10 @@ void render_keys(SDL_Renderer* renderer, TTF_Font* font, int highlighted_index) 
             SDL_RenderFillRect(renderer, &right_border);
         }
 
-        x += width + gap;
+        x += width + gapx;
         if ((i + 1) % 5 == 0) {
             x = x0;
-            y += keyH + gap;
+            y += keyHx + gapx;
         }
     }
 

@@ -3,79 +3,101 @@
 #include <SDL2/SDL_ttf.h>
 #include <iostream>
 #include <X11/Xlib.h>
+#include <string>
+#include <cmath>
 
 using namespace std;
 
 // Declaração das funções definidas em Bpart0.cpp e Cpart0.cpp
-extern int run_scanning(Display* display, Window target_window, SDL_Renderer* renderer, TTF_Font* font);
-extern int run_selection(Display* display, Window target_window, SDL_Renderer* renderer, TTF_Font* font);
+extern int run_scanning(Display* display, Window target_window, SDL_Renderer* renderer);
+extern int run_selection(Display* display, Window target_window, SDL_Renderer* renderer);
+extern int run_settings(SDL_Renderer* renderer);
 
 bool g_is_fullscreen = false;   // estado global do F11
 
+const char* FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
+TTF_Font* font = nullptr;          // torna-se GLOBAL neste arquivo
+const int BASE_FONT_PX = 24;
+
+bool reload_font()                 // reabre a fonte no tamanho correto
+{
+    if (font)  TTF_CloseFont(font);
+    font = TTF_OpenFont(FONT_PATH, static_cast<int>(BASE_FONT_PX * g_scale_pct / 100.0));
+    return font != nullptr;
+}
+
 // Exibe o menu principal
-int show_main_menu(SDL_Renderer* renderer, TTF_Font* font) {
-    /* --- tamanho atual da janela --- */
-    int winW, winH;
-    SDL_GetRendererOutputSize(renderer, &winW, &winH);
+int show_main_menu(SDL_Renderer* renderer)
+{
+    bool needs_redraw = true;
+    SDL_Event ev;
 
-    const int btnW = 500, btnH = 60, gap = 30;
+    /* Retângulos dos botões serão recalculados sempre que a janela mudar */
+    SDL_Rect optionB{}, optionC{}, settings{};
 
-    /* 3 botões empilhados: altura total = 3*btnH + 2*gap */
-    int totalH = 3 * btnH + 2 * gap;
-    int startY = (winH - totalH) / 2;          // centraliza verticalmente
-    int startX = (winW - btnW) / 2;            // centraliza horizontalmente
-
-    SDL_Rect optionB = {startX, startY, btnW, btnH};
-    SDL_Rect optionC = {startX, startY + btnH + gap, btnW, btnH};
-    SDL_Rect settings = {startX, startY + 2*(btnH+gap), btnW, btnH};
-
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    SDL_RenderClear(renderer);
-
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    SDL_RenderDrawRect(renderer, &optionB);
-    SDL_RenderDrawRect(renderer, &optionC);
-    SDL_RenderDrawRect(renderer, &settings);
-
-    draw_text(renderer, font, "Solução B (Varredura Automática)", optionB, BLACK);
-    draw_text(renderer, font, "Solução C (Mouse Adaptado)",       optionC, BLACK);
-    draw_text(renderer, font, "Configurações", settings, BLACK);
-
-    SDL_RenderPresent(renderer);
-
-    SDL_Event event;
     while (true) {
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) return -1;
-            if (event.type == SDL_KEYDOWN) {
-                if (event.key.keysym.sym == SDLK_F11) {
-                    g_is_fullscreen = !g_is_fullscreen;
-                    SDL_SetWindowFullscreen(SDL_GetWindowFromID(1),
-                            g_is_fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
-                    /* recalcule positions depois de mudar o tamanho */
-                    return 0;   // força redesenho imediato
-                }
+        /* -----------------------------------------------------------------
+         * (re)desenha apenas quando realmente necessário
+         * -----------------------------------------------------------------*/
+        if (needs_redraw) {
+            int winW, winH;
+            SDL_GetRendererOutputSize(renderer, &winW, &winH);
+
+            const int btnW = static_cast<int>(lround(SZ(500))), btnH = static_cast<int>(lround(SZ(60))), gap = static_cast<int>(lround(SZ(30)));
+            int totalH   = 3 * btnH + 2 * gap;
+            int startY   = (winH - totalH) / 2;
+            int startX   = (winW - btnW)  / 2;
+
+            optionB  = {startX,                 startY,               btnW, btnH};
+            optionC  = {startX, startY + btnH + gap,                 btnW, btnH};
+            settings = {startX, startY + 2 * (btnH + gap),           btnW, btnH};
+
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+            SDL_RenderClear(renderer);
+
+            SDL_SetRenderDrawColor(renderer,   0,   0,   0, 255);
+            SDL_RenderDrawRect(renderer, &optionB);
+            SDL_RenderDrawRect(renderer, &optionC);
+            SDL_RenderDrawRect(renderer, &settings);
+
+            draw_text(renderer, font, "Solução B (Varredura Automática)", optionB,  BLACK);
+            draw_text(renderer, font, "Solução C (Mouse Adaptado)",       optionC,  BLACK);
+            draw_text(renderer, font, "Configurações",                    settings, BLACK);
+
+            SDL_RenderPresent(renderer);
+            needs_redraw = false;
+        }
+
+        /* -----------------------------------------------------------------
+         * trata eventos
+         * -----------------------------------------------------------------*/
+        while (SDL_PollEvent(&ev)) {
+            if (ev.type == SDL_QUIT)      return -1;
+
+            if (ev.type == SDL_WINDOWEVENT &&
+                ev.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+                needs_redraw = true;                         // redimensionou
+
+            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_F11) {
+                extern bool g_is_fullscreen;
+                g_is_fullscreen = !g_is_fullscreen;
+                SDL_SetWindowFullscreen(SDL_GetWindowFromID(1),
+                        g_is_fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+                needs_redraw = true;                         // tela mudou → redesenhar
             }
-            /* novo: clique do mouse escolhe a opção ------------------ */
-            if (event.type == SDL_MOUSEBUTTONDOWN &&
-                event.button.button == SDL_BUTTON_LEFT) {
 
-                int mx = event.button.x, my = event.button.y;
+            if (ev.type == SDL_MOUSEBUTTONDOWN &&
+                ev.button.button == SDL_BUTTON_LEFT) {
+                int mx = ev.button.x, my = ev.button.y;
                 if (mx >= optionB.x && mx <= optionB.x + optionB.w &&
-                    my >= optionB.y && my <= optionB.y + optionB.h)
-                    return 1;   // Solução B
-
+                    my >= optionB.y && my <= optionB.y + optionB.h) return 1;
                 if (mx >= optionC.x && mx <= optionC.x + optionC.w &&
-                    my >= optionC.y && my <= optionC.y + optionC.h)
-                    return 2;   // Solução C
+                    my >= optionC.y && my <= optionC.y + optionC.h) return 2;
                 if (mx >= settings.x && mx <= settings.x + settings.w &&
-                    my >= settings.y && my <= settings.y + settings.h) {
-                    /* Configurações ainda não implementado */
-                    cout << "opa" << endl;
-                    continue;   // por ora, botão não faz nada
-                }
+                    my >= settings.y && my <= settings.y + settings.h) return 3;
             }
         }
+        SDL_Delay(10);  // evita usar 100 % da CPU
     }
 }
 
@@ -88,12 +110,8 @@ int main() {
         700, 350,
         SDL_WINDOW_RESIZABLE);                // <- agora redimensionável
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    TTF_Font* font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24);
 
-    if (!font) {
-        cerr << "Erro ao carregar a fonte!" << endl;
-        return -1;
-    }
+    if (!reload_font()) { cerr << "Falha ao abrir fonte\n"; return 1; }
 
     Display* display = XOpenDisplay(NULL);
     if (!display) {
@@ -106,9 +124,10 @@ int main() {
     int choice;
 
     do {
-        choice = show_main_menu(renderer, font);
-        if (choice == 1) choice = run_scanning(display, target_window, renderer, font);
-        else if (choice == 2) choice = run_selection(display, target_window, renderer, font);
+        choice = show_main_menu(renderer);
+        if (choice == 1) choice = run_scanning(display, target_window, renderer);
+        else if (choice == 2) choice = run_selection(display, target_window, renderer);
+        else if (choice == 3) choice = run_settings(renderer);
     } while (choice != -1);
 
     XCloseDisplay(display);

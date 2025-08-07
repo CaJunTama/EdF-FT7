@@ -12,9 +12,10 @@
 using namespace std;
 
 extern bool g_is_fullscreen;
+extern TTF_Font* font;
 
 // Processa clique do mouse e simula pressionamento de tecla
-void handle_mouse_click(Display* display, Window target_window, int x, int y, SDL_Renderer* renderer, TTF_Font* font) {
+void handle_mouse_click(Display* display, Window target_window, int x, int y, SDL_Renderer* renderer) {
     XSetInputFocus(display, target_window, RevertToParent, CurrentTime);
 
     for (size_t i = 0; i < keys.size(); i++) {
@@ -60,7 +61,7 @@ void handle_mouse_click(Display* display, Window target_window, int x, int y, SD
     }
 }
 
-int run_selection(Display* display, Window target_window, SDL_Renderer* renderer, TTF_Font* font) {
+int run_selection(Display* display, Window target_window, SDL_Renderer* renderer) {
     while (true) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
@@ -72,7 +73,7 @@ int run_selection(Display* display, Window target_window, SDL_Renderer* renderer
             }
             if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) return 0;
             else if (event.type == SDL_MOUSEBUTTONDOWN) {
-                handle_mouse_click(display, target_window, event.button.x, event.button.y, renderer, font);
+                handle_mouse_click(display, target_window, event.button.x, event.button.y, renderer);
             }
         }
         render_keys(renderer, font);

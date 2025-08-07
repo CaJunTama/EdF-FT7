@@ -13,6 +13,7 @@
 using namespace std;
 
 extern bool g_is_fullscreen;
+extern TTF_Font* font;          //  fonte global carregada em TEcSRM.cpp
 
 // Estrutura de controle global
 struct Scanner {
@@ -35,7 +36,7 @@ Scanner* scanner = nullptr;
 constexpr Uint32 INTERVAL = 1000;  // Intervalo de 1 segundo por tecla
 
 // Enviar comandos de acordo com a tecla e fazer a borda piscar 3 vezes
-void process_key(Display* display, Window target_window, const string& key, SDL_Renderer* renderer, TTF_Font* font) {
+void process_key(Display* display, Window target_window, const string& key, SDL_Renderer* renderer) {
     XSetInputFocus(display, target_window, RevertToParent, CurrentTime);
 
     if (key >= "0" && key <= "9") send_key(display, target_window, XStringToKeysym(key.c_str()));
@@ -73,7 +74,7 @@ void process_key(Display* display, Window target_window, const string& key, SDL_
 }
 
 // Lógica principal da varredura
-int run_scanning(Display* display, Window target_window, SDL_Renderer* renderer, TTF_Font* font) {
+int run_scanning(Display* display, Window target_window, SDL_Renderer* renderer) {
     // Inicializa `scanner` corretamente
     scanner = new Scanner();
 
@@ -98,7 +99,7 @@ int run_scanning(Display* display, Window target_window, SDL_Renderer* renderer,
                 delete scanner;  // Libera a memória corretamente
                 return 0;
             } else if (event.type == SDL_MOUSEBUTTONDOWN) {
-                process_key(display, target_window, keys[scanner->current_index].label, renderer, font);
+                process_key(display, target_window, keys[scanner->current_index].label, renderer);
                 last_time = SDL_GetTicks();
             }
         }
