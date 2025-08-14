@@ -1,8 +1,10 @@
 #include "common.h"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_syswm.h>
 #include <iostream>
 #include <X11/Xlib.h>
+#include <X11/Xcursor/Xcursor.h>
 #include <string>
 #include <cmath>
 
@@ -113,6 +115,26 @@ int main() {
 
     if (!reload_font()) { cerr << "Falha ao abrir fonte\n"; return 1; }
 
+    // === Cursor maior mantendo o desenho do tema (Xcursor) =================
+    Cursor xcur = 0;       // guardaremos para liberar no final
+    Display* dpy_for_cursor = nullptr;
+
+    SDL_SysWMinfo wmi;
+    SDL_VERSION(&wmi.version);
+    if (SDL_GetWindowWMInfo(window, &wmi) && wmi.subsystem == SDL_SYSWM_X11) {
+        dpy_for_cursor = wmi.info.x11.display;
+        ::Window xwin  = wmi.info.x11.window;
+
+        // Tamanho desejado (experimente 48, 64, 72…)
+        XcursorSetDefaultSize(dpy_for_cursor, 72);
+        xcur = XcursorLibraryLoadCursor(dpy_for_cursor, "left_ptr");
+        if (xcur) {
+            XDefineCursor(dpy_for_cursor, xwin, xcur);
+            XFlush(dpy_for_cursor);
+        }
+    }
+    // ======================================================================
+
     Display* display = XOpenDisplay(NULL);
     if (!display) {
         cerr << "Erro ao abrir a conexão com o servidor X." << endl;
@@ -129,6 +151,9 @@ int main() {
         else if (choice == 2) choice = run_selection(display, target_window, renderer);
         else if (choice == 3) choice = run_settings(renderer);
     } while (choice != -1);
+
+    // Libera cursor custom, se criado
+    if (xcur && dpy_for_cursor) XFreeCursor(dpy_for_cursor, xcur);
 
     XCloseDisplay(display);
     TTF_CloseFont(font);

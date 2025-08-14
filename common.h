@@ -22,8 +22,8 @@ struct Key {
 // Definição das cores
 constexpr SDL_Color BLACK = {0, 0, 0, 255};
 constexpr SDL_Color WHITE = {255, 255, 255, 255};
-constexpr SDL_Color GREEN = {0, 255, 0, 255};
-constexpr SDL_Color RED = {255, 0, 0, 255};
+constexpr SDL_Color CONFIRMA_GREEN = {80, 162, 93, 255};
+constexpr SDL_Color CORRIGE_ORANGE = {233, 101, 1, 255};
 
 // Declaração do vetor keys
 extern vector<Key> keys;

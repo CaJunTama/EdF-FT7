@@ -11,7 +11,7 @@ int g_scale_pct = 100;            // começa em 100 %
 vector<Key> keys = {
     {"0", BLACK}, {"1", BLACK}, {"2", BLACK}, {"3", BLACK}, {"4", BLACK},
     {"5", BLACK}, {"6", BLACK}, {"7", BLACK}, {"8", BLACK}, {"9", BLACK},
-    {"Confirma", GREEN}, {"Corrige", RED}, {"Branco", WHITE}
+    {"Confirma", CONFIRMA_GREEN}, {"Corrige", CORRIGE_ORANGE}, {"Branco", WHITE}
 };
 
 // Implementação da função `send_key`
@@ -124,17 +124,8 @@ static void draw_focus_border_rects(SDL_Renderer* r, SDL_Rect key, SDL_Color key
         SDL_RenderFillRect(r, &right);
     };
 
-    // Luminância relativa simples p/ decidir preto/branco no anel interno
-    auto srgb_to_linear = [](double c) {
-        return (c <= 0.04045) ? (c/12.92) : pow((c+0.055)/1.055, 2.4);
-    };
-    const double L =
-        0.2126*srgb_to_linear(keyFill.r/255.0) +
-        0.7152*srgb_to_linear(keyFill.g/255.0) +
-        0.0722*srgb_to_linear(keyFill.b/255.0);
-    const SDL_Color inner = (L >= 0.5)
-        ? SDL_Color{0,0,0,255}          // tecla clara → anel interno preto
-        : SDL_Color{255,255,255,255};   // tecla escura → anel interno branco
+    const bool isWhiteKey = (keyFill.r == 255 && keyFill.g == 255 && keyFill.b == 255);
+    const SDL_Color inner = isWhiteKey ? SDL_Color{0,0,0,255} : SDL_Color{255,255,255,255};
 
     // 1) Anel interno (encostado na tecla)
     draw_ring(inner, /*offset=*/0, /*thick=*/t_in);
