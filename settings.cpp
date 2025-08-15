@@ -12,6 +12,9 @@ using namespace std;
 /* --- escalas disponíveis -------------------------------------------------- */
 constexpr array<int,5> SCALES = {100, 125, 150, 175, 200};
 
+// Placeholder de tamanhos do cursor (1 a 5), default = 1
+constexpr array<int,5> CURSOR_SIZES = {1, 2, 3, 4, 5};
+
 /* ===== Helpers locais (quadrados) ======================================== */
 static inline bool hit_rect(int mx, int my, const SDL_Rect& r) {
     return mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h;
@@ -37,8 +40,8 @@ static void draw_square_button(SDL_Renderer* r,
     SDL_Rect inner{
         outer.x + border_thick,
         outer.y + border_thick,
-        std::max(0, outer.w - 2*border_thick),
-        std::max(0, outer.h - 2*border_thick)
+        max(0, outer.w - 2*border_thick),
+        max(0, outer.h - 2*border_thick)
     };
     SDL_SetRenderDrawColor(r, fill.r, fill.g, fill.b, 255);
     if (inner.w > 0 && inner.h > 0) SDL_RenderFillRect(r, &inner);
@@ -49,7 +52,7 @@ static void draw_square_button(SDL_Renderer* r,
         for (int k = 0; k < outline_int_thick; ++k) {
             SDL_Rect ir{
                 inner.x + k, inner.y + k,
-                std::max(0, inner.w - 2*k), std::max(0, inner.h - 2*k)
+                max(0, inner.w - 2*k), max(0, inner.h - 2*k)
             };
             if (ir.w > 0 && ir.h > 0) SDL_RenderDrawRect(r, &ir);
         }
@@ -75,6 +78,10 @@ int run_settings(SDL_Renderer* renderer)
     int idx = 0;
     while (idx < (int)SCALES.size() && SCALES[idx] < g_scale_pct) ++idx;
 
+    int idxCursor = 0;  // default = 1 (posição 0 do array CURSOR_SIZES)
+
+    int scan_speed = 3; // placeholder (1..5) - somente UI
+
     bool needs_redraw = true;
     SDL_Event ev;
 
@@ -82,13 +89,19 @@ int run_settings(SDL_Renderer* renderer)
     const int BTN_SIZE0    = 40;   // altura/largura dos botões + e −
     const int GAP_H0       = 12;   // gap horizontal
     const int GAP_V0       = 12;   // gap vertical entre linhas
-    const int GAP_ROWS0    = 24;   // espaço entre a linha de Zoom e a de Alto Contraste
+    const int GAP_ROWS0    = 96;   // espaço entre a linha de Zoom e a de Alto Contraste
     const int BOX_BORDER0  = 5;    // espessura base da borda do quadrado
     const int BOX_OUTLINE0 = 1;  // 1 px em 100%
 
     SDL_Rect btnPlus{}, btnMinus{}, txtZoomBox{};
+    // Cursor (placeholder)
+    SDL_Rect curPlus{}, curMinus{}, txtCurBox{};
+    // Velocidade (placeholder)
+    SDL_Rect btnSpdPlus{}, btnSpdMinus{}, txtSpdBox{};
+
     SDL_Rect txtHCBox{};
     SDL_Rect q1{}, q2{}, q3{};     // retângulos dos três botões
+    
 
     while (true) {
         /* ===================== REDESENHO =================================== */
@@ -110,7 +123,22 @@ int run_settings(SDL_Renderer* renderer)
             TTF_SizeUTF8(font, zoomStr.c_str(), &zW, &zH);
 
             const int zoomGroupW = zW + GAP_H + BTN_SIZE + GAP_H + BTN_SIZE;
-            const int zoomGroupH = std::max(zH, BTN_SIZE);
+            const int zoomGroupH = max(zH, BTN_SIZE);
+
+            // Cursor (placeholder) – mesmo padrão do Zoom
+            string curStr = string("Tamanho do Cursor: ") + to_string(CURSOR_SIZES[idxCursor]);
+            int cW = 0, cH = 0;
+            TTF_SizeUTF8(font, curStr.c_str(), &cW, &cH);
+            const int curGroupW = cW + GAP_H + BTN_SIZE + GAP_H + BTN_SIZE;
+            const int curGroupH = max(cH, BTN_SIZE);
+
+            // Linha 2 (placeholder): Velocidade de varredura — mesmo padrão do Zoom [texto][+][−]
+            string spdStr = "Velocidade de Varredura: " + to_string(scan_speed);
+            int spdW = 0, spdH = 0;
+            TTF_SizeUTF8(font, spdStr.c_str(), &spdW, &spdH);
+
+            const int spdGroupW = spdW + GAP_H + BTN_SIZE + GAP_H + BTN_SIZE;
+            const int spdGroupH = max(spdH, BTN_SIZE);
 
             // a altura total do bloco (linha zoom + espaçamento + linha HC)
             const string hcStr = "Alto Contraste: ";
@@ -119,9 +147,9 @@ int run_settings(SDL_Renderer* renderer)
 
             const int gapBoxes = GAP_H; // espaçamento entre quadrados
             const int hcLineW  = hcWText + GAP_H + 3*BTN_SIZE + 2*gapBoxes;
-            const int hcLineH  = std::max(hcHText, BTN_SIZE);
+            const int hcLineH  = max(hcHText, BTN_SIZE);
 
-            const int totalH   = zoomGroupH + GAP_ROWS + hcLineH;
+            const int totalH = zoomGroupH + GAP_V + curGroupH + GAP_V + spdGroupH + GAP_ROWS + hcLineH;
             const int baseY    = (winH - totalH) / 2;
 
             // ---- posicionamento Zoom (centralizado) ----
@@ -132,9 +160,25 @@ int run_settings(SDL_Renderer* renderer)
             btnPlus    = { txtZoomBox.x + txtZoomBox.w + GAP_H, zoomStartY, BTN_SIZE, BTN_SIZE };
             btnMinus   = { btnPlus.x + btnPlus.w + GAP_H,       zoomStartY, BTN_SIZE, BTN_SIZE };
 
+            // ---- posicionamento Cursor (centralizado, abaixo do Zoom) ----
+            const int curStartX = (winW - curGroupW) / 2;
+            const int curStartY = zoomStartY + zoomGroupH + GAP_V;
+
+            txtCurBox = { curStartX, curStartY + (curGroupH - cH)/2, cW, cH };
+            curPlus   = { txtCurBox.x + txtCurBox.w + GAP_H, curStartY, BTN_SIZE, BTN_SIZE };
+            curMinus  = { curPlus.x + curPlus.w + GAP_H,     curStartY, BTN_SIZE, BTN_SIZE };
+
+            // Posicionamento da linha Velocidade: centralizado, abaixo do Zoom
+            const int spdStartX = (winW - spdGroupW) / 2;
+            const int spdStartY = curStartY + curGroupH + GAP_V;
+
+            txtSpdBox   = { spdStartX, spdStartY + (spdGroupH - spdH)/2, spdW, spdH };
+            btnSpdPlus  = { txtSpdBox.x + txtSpdBox.w + GAP_H, spdStartY, BTN_SIZE, BTN_SIZE };
+            btnSpdMinus = { btnSpdPlus.x + btnSpdPlus.w + GAP_H,        spdStartY, BTN_SIZE, BTN_SIZE };
+
             // ---- posicionamento linha Alto Contraste (centralizado) ----
             const int hcStartX = (winW - hcLineW) / 2;
-            const int hcStartY = baseY + zoomGroupH + GAP_ROWS;
+            const int hcStartY = baseY + zoomGroupH + GAP_V + curGroupH + GAP_V + spdGroupH + GAP_ROWS;
 
             txtHCBox = { hcStartX, hcStartY + (hcLineH - hcHText)/2, hcWText, hcHText };
 
@@ -158,6 +202,22 @@ int run_settings(SDL_Renderer* renderer)
             draw_text(renderer, font, zoomStr.c_str(), txtZoomBox, BLACK);
             draw_text(renderer, font, "+", btnPlus,  BLACK);
             draw_text(renderer, font, "−", btnMinus, BLACK);
+
+            // Desenho da linha Cursor (mesmo estilo do Zoom)
+            SDL_SetRenderDrawColor(renderer, 0,0,0,255);
+            SDL_RenderDrawRect(renderer, &curPlus);
+            SDL_RenderDrawRect(renderer, &curMinus);
+            draw_text(renderer, font, curStr.c_str(), txtCurBox, BLACK);
+            draw_text(renderer, font, "+", curPlus,  BLACK);
+            draw_text(renderer, font, "−", curMinus, BLACK);
+
+            // Desenho da linha Velocidade (mesmo estilo do Zoom)
+            SDL_SetRenderDrawColor(renderer, 0,0,0,255);
+            SDL_RenderDrawRect(renderer, &btnSpdPlus);
+            SDL_RenderDrawRect(renderer, &btnSpdMinus);
+            draw_text(renderer, font, spdStr.c_str(), txtSpdBox, BLACK);
+            draw_text(renderer, font, "+", btnSpdPlus,  BLACK);
+            draw_text(renderer, font, "−", btnSpdMinus, BLACK);
 
             // linha 2 (alto contraste) - texto sem borda
             draw_text(renderer, font, hcStr.c_str(), txtHCBox, BLACK);
@@ -207,6 +267,20 @@ int run_settings(SDL_Renderer* renderer)
                     ++idx; g_scale_pct = SCALES[idx]; reload_font(); needs_redraw = true;
                 } else if (hit_rect(mx, my, btnMinus) && idx > 0) {
                     --idx; g_scale_pct = SCALES[idx]; reload_font(); needs_redraw = true;
+                } 
+
+                // Placeholder do Cursor (1..5)
+                else if (hit_rect(mx, my, curPlus) && idxCursor < (int)CURSOR_SIZES.size() - 1) {
+                    ++idxCursor; needs_redraw = true;
+                } else if (hit_rect(mx, my, curMinus) && idxCursor > 0) {
+                    --idxCursor; needs_redraw = true;
+                }
+
+                // Placeholder da Velocidade (1..5)
+                else if (hit_rect(mx, my, btnSpdPlus) && scan_speed < 5) {
+                    ++scan_speed; needs_redraw = true;
+                } else if (hit_rect(mx, my, btnSpdMinus) && scan_speed > 1) {
+                    --scan_speed; needs_redraw = true;
                 }
 
                 // Placeholders Alto Contraste (por enquanto, só logam)
