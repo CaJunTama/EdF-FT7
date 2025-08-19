@@ -10,6 +10,34 @@
 
 using namespace std;
 
+// === Helpers de contraste p/ escolher outline coerente (PB ou HC3) =========
+static inline double srgb_to_linear_01(uint8_t c) {
+    const double cs = c / 255.0;
+    return (cs <= 0.04045) ? (cs / 12.92) : pow((cs + 0.055) / 1.055, 2.4);
+}
+static inline double rel_lum(SDL_Color c) {
+    const double R = srgb_to_linear_01(c.r);
+    const double G = srgb_to_linear_01(c.g);
+    const double B = srgb_to_linear_01(c.b);
+    return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+}
+static inline double contrast_ratio(SDL_Color a, SDL_Color b) {
+    const double La = rel_lum(a), Lb = rel_lum(b);
+    const double Lmax = (La > Lb) ? La : Lb;
+    const double Lmin = (La > Lb) ? Lb : La;
+    return (Lmax + 0.05) / (Lmin + 0.05);
+}
+static inline SDL_Color best_from_pair_for(SDL_Color base, SDL_Color dark, SDL_Color light) {
+    return (contrast_ratio(base, dark) >= contrast_ratio(base, light)) ? dark : light;
+}
+static inline SDL_Color pick_outline_vs_bg(SDL_Color bg) {
+    if (g_hc_option == 3) { // HC3: usa o par colorido
+        return best_from_pair_for(bg, HC3_DARK, HC3_LIGHT);
+    }
+    // HC1/HC2: PB
+    return best_from_pair_for(bg, SDL_Color{0,0,0,255}, SDL_Color{255,255,255,255});
+}
+
 // Declaração das funções definidas em Bpart0.cpp e Cpart0.cpp
 extern int run_scanning(Display* display, Window target_window, SDL_Renderer* renderer);
 extern int run_selection(Display* display, Window target_window, SDL_Renderer* renderer);
@@ -56,16 +84,16 @@ int show_main_menu(SDL_Renderer* renderer)
 
             clear_with_bg(renderer);
 
-            SDL_Color uiFG = (g_bg_color.r + g_bg_color.g + g_bg_color.b >= 384) ? BLACK : WHITE;
+            SDL_Color uiOutline = pick_outline_vs_bg(g_bg_color);
 
-            SDL_SetRenderDrawColor(renderer, uiFG.r, uiFG.g, uiFG.b, 255);
+            SDL_SetRenderDrawColor(renderer, uiOutline.r, uiOutline.g, uiOutline.b, 255);
             SDL_RenderDrawRect(renderer, &optionB);
             SDL_RenderDrawRect(renderer, &optionC);
             SDL_RenderDrawRect(renderer, &settings);
 
-            draw_text(renderer, font, "Solução B (Varredura Automática)", optionB,  uiFG);
-            draw_text(renderer, font, "Solução C (Mouse Adaptado)",       optionC,  uiFG);
-            draw_text(renderer, font, "Configurações",                    settings, uiFG);
+            draw_text(renderer, font, "Solução B (Varredura Automática)", optionB,  uiOutline);
+            draw_text(renderer, font, "Solução C (Mouse Adaptado)",       optionC,  uiOutline);
+            draw_text(renderer, font, "Configurações",                    settings, uiOutline);
 
             SDL_RenderPresent(renderer);
             needs_redraw = false;

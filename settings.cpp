@@ -20,6 +20,34 @@ static inline bool hit_rect(int mx, int my, const SDL_Rect& r) {
     return mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h;
 }
 
+// === Helpers de contraste p/ escolher outline coerente (PB ou HC3) =========
+static inline double srgb_to_linear_01(uint8_t c) {
+    const double cs = c / 255.0;
+    return (cs <= 0.04045) ? (cs / 12.92) : pow((cs + 0.055) / 1.055, 2.4);
+}
+static inline double rel_lum(SDL_Color c) {
+    const double R = srgb_to_linear_01(c.r);
+    const double G = srgb_to_linear_01(c.g);
+    const double B = srgb_to_linear_01(c.b);
+    return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+}
+static inline double contrast_ratio(SDL_Color a, SDL_Color b) {
+    const double La = rel_lum(a), Lb = rel_lum(b);
+    const double Lmax = (La > Lb) ? La : Lb;
+    const double Lmin = (La > Lb) ? Lb : La;
+    return (Lmax + 0.05) / (Lmin + 0.05);
+}
+static inline SDL_Color best_from_pair_for(SDL_Color base, SDL_Color dark, SDL_Color light) {
+    return (contrast_ratio(base, dark) >= contrast_ratio(base, light)) ? dark : light;
+}
+static inline SDL_Color pick_outline_vs_bg(SDL_Color bg) {
+    if (g_hc_option == 3) { // HC3: usa o par colorido
+        return best_from_pair_for(bg, HC3_DARK, HC3_LIGHT);
+    }
+    // HC1/HC2: PB
+    return best_from_pair_for(bg, SDL_Color{0,0,0,255}, SDL_Color{255,255,255,255});
+}
+
 // Desenha botão quadrado com:
 // - borda (anel retangular)
 // - miolo (quadrado interno)
@@ -170,48 +198,47 @@ int run_settings(SDL_Renderer* renderer)
             /* ------------------------ desenho -------------------------------- */
             clear_with_bg(renderer);
 
-            SDL_Color uiFG = (g_bg_color.r + g_bg_color.g + g_bg_color.b >= 384)
-                             ? BLACK : WHITE;  // se fundo é claro → preto; se escuro → branco
+            SDL_Color uiOutline = pick_outline_vs_bg(g_bg_color);
 
             // linha 1 (zoom)
-            SDL_SetRenderDrawColor(renderer, uiFG.r, uiFG.g, uiFG.b, 255);
+            SDL_SetRenderDrawColor(renderer, uiOutline.r, uiOutline.g, uiOutline.b, 255);
             SDL_RenderDrawRect(renderer, &btnPlus);
             SDL_RenderDrawRect(renderer, &btnMinus);
-            draw_text(renderer, font, zoomStr.c_str(), txtZoomBox, uiFG);
-            draw_text(renderer, font, "+", btnPlus,  uiFG);
-            draw_text(renderer, font, "−", btnMinus, uiFG);
+            draw_text(renderer, font, zoomStr.c_str(), txtZoomBox, uiOutline);
+            draw_text(renderer, font, "+", btnPlus,  uiOutline);
+            draw_text(renderer, font, "−", btnMinus, uiOutline);
 
             // Desenho da linha Cursor (mesmo estilo do Zoom)
-            SDL_SetRenderDrawColor(renderer, uiFG.r, uiFG.g, uiFG.b, 255);
+            SDL_SetRenderDrawColor(renderer, uiOutline.r, uiOutline.g, uiOutline.b, 255);
             SDL_RenderDrawRect(renderer, &curPlus);
             SDL_RenderDrawRect(renderer, &curMinus);
-            draw_text(renderer, font, curStr.c_str(), txtCurBox, uiFG);
-            draw_text(renderer, font, "+", curPlus,  uiFG);
-            draw_text(renderer, font, "−", curMinus, uiFG);
+            draw_text(renderer, font, curStr.c_str(), txtCurBox, uiOutline);
+            draw_text(renderer, font, "+", curPlus,  uiOutline);
+            draw_text(renderer, font, "−", curMinus, uiOutline);
 
             // Desenho da linha Velocidade (mesmo estilo do Zoom)
-            SDL_SetRenderDrawColor(renderer, uiFG.r, uiFG.g, uiFG.b, 255);
+            SDL_SetRenderDrawColor(renderer, uiOutline.r, uiOutline.g, uiOutline.b, 255);
             SDL_RenderDrawRect(renderer, &btnSpdPlus);
             SDL_RenderDrawRect(renderer, &btnSpdMinus);
-            draw_text(renderer, font, spdStr.c_str(), txtSpdBox, uiFG);
-            draw_text(renderer, font, "+", btnSpdPlus,  uiFG);
-            draw_text(renderer, font, "−", btnSpdMinus, uiFG);
+            draw_text(renderer, font, spdStr.c_str(), txtSpdBox, uiOutline);
+            draw_text(renderer, font, "+", btnSpdPlus,  uiOutline);
+            draw_text(renderer, font, "−", btnSpdMinus, uiOutline);
 
             // linha 2 (alto contraste) - texto sem borda
-            draw_text(renderer, font, hcStr.c_str(), txtHCBox, uiFG);
+            draw_text(renderer, font, hcStr.c_str(), txtHCBox, uiOutline);
 
             // três botões quadrados (placeholders)
             // 1) miolo branco, borda preta
             draw_square_button(renderer, q1, BLACK, WHITE, BOX_BORDER,
-                               uiFG, BOX_OUTLINE);
+                               uiOutline, BOX_OUTLINE);
 
             // 2) miolo preto, borda branca
             draw_square_button(renderer, q2, WHITE, BLACK, BOX_BORDER,
-                               uiFG, BOX_OUTLINE);
+                               uiOutline, BOX_OUTLINE);
 
             // 3) miolo branco, borda branca
             draw_square_button(renderer, q3, HC3_DARK, HC3_LIGHT, BOX_BORDER,
-                               uiFG, BOX_OUTLINE);
+                               uiOutline, BOX_OUTLINE);
 
             SDL_RenderPresent(renderer);
             needs_redraw = false;

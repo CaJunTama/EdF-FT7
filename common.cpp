@@ -170,6 +170,54 @@ static inline SDL_Rect inflate(SDL_Rect r, int d) {
     return SDL_Rect{ r.x - d, r.y - d, r.w + 2*d, r.h + 2*d };
 }
 
+static inline double contrast_ratio(SDL_Color a, SDL_Color b) {
+    const double La = rel_lum(a), Lb = rel_lum(b);
+    const double Lmax = std::max(La, Lb), Lmin = std::min(La, Lb);
+    return (Lmax + 0.05) / (Lmin + 0.05);
+}
+
+// Escolhe entre (dark, light) a que entrega MAIOR contraste contra `base`
+static inline SDL_Color best_from_pair_for(SDL_Color base, SDL_Color dark, SDL_Color light) {
+    return (contrast_ratio(base, dark) >= contrast_ratio(base, light)) ? dark : light;
+}
+
+// Texto sobre a tecla (preenche melhor contraste):
+// - HC3: escolhe entre (HC3_DARK, HC3_LIGHT)
+// - HC1/HC2: escolhe entre (preto, branco)
+static inline SDL_Color pick_text_for_fill(SDL_Color fill) {
+    if (g_hc_option == 3) {
+        return best_from_pair_for(fill, HC3_DARK, HC3_LIGHT);
+    }
+    // fallback PB
+    return best_text_bw_for_fill(fill);
+}
+
+static inline bool same_rgb(SDL_Color a, SDL_Color b) {
+    return a.r==b.r && a.g==b.g && a.b==b.b;
+}
+
+static inline SDL_Color other_in_pair(SDL_Color c, SDL_Color dark, SDL_Color light) {
+    return same_rgb(c, light) ? dark : light;
+}
+
+// Anel interno do realce: adapta à cor da tecla
+static inline SDL_Color pick_inner_ring_color(SDL_Color keyFill) {
+    if (g_hc_option == 3) {
+        // HC3 usa o par colorido
+        return best_from_pair_for(keyFill, HC3_DARK, HC3_LIGHT);
+    }
+    // HC1/HC2: PB
+    return best_from_pair_for(keyFill, SDL_Color{0,0,0,255}, SDL_Color{255,255,255,255});
+}
+
+// Outline que contrasta com o fundo atual
+static inline SDL_Color pick_outline_vs_bg(SDL_Color bg) {
+    if (g_hc_option == 3) {
+        return best_from_pair_for(bg, HC3_DARK, HC3_LIGHT);
+    }
+    return best_from_pair_for(bg, SDL_Color{0,0,0,255}, SDL_Color{255,255,255,255});
+}
+
 // Borda dupla por 4 retângulos (interno + externo).
 // Interno: preto/branco conforme sua lógica (ou fixa branca, se você decidiu assim).
 // EXTERNO: preto ou branco, escolhido para maximizar contraste com o FUNDO atual (paleta).
@@ -195,15 +243,26 @@ static void draw_focus_border_rects(SDL_Renderer* r, SDL_Rect key, SDL_Color key
         SDL_RenderFillRect(r, &right);
     };
 
-    // --- sua lógica para o ANEL INTERNO (ex.: adaptação simples) -------------
-    // Branco por padrão, mas se a tecla for branca usamos preto:
-    const SDL_Color inner = pick_inner_ring(keyFill); // preto p/ fill claro; branco p/ fill escuro
-
     // 1) ANEL INTERNO (encostado na tecla)
+    SDL_Color inner;
+    if (g_hc_option == 3) {
+        // HC3: anel interno se adapta à cor da tecla com o par (HC3_DARK, HC3_LIGHT)
+        inner = best_from_pair_for(keyFill, HC3_DARK, HC3_LIGHT);
+    } else {
+        // HC1/HC2: anel interno se adapta com o par (preto, branco)
+        inner = best_from_pair_for(keyFill, SDL_Color{0,0,0,255}, SDL_Color{255,255,255,255});
+    }
     draw_ring(inner, /*offset=*/0,    /*thick=*/t_in);
 
     // 2) ANEL EXTERNO — escolhe preto OU branco p/ maximizar contraste com o FUNDO atual
-    const SDL_Color outer = best_bw_for_bg(g_bg_color);
+    SDL_Color outer;
+    if (g_hc_option == 3) {
+        // HC3: anel externo contrasta com o FUNDO usando (HC3_DARK, HC3_LIGHT)
+        outer = best_from_pair_for(g_bg_color, HC3_DARK, HC3_LIGHT);
+    } else {
+        // HC1/HC2: anel externo contrasta com o FUNDO usando (preto, branco)
+        outer = best_from_pair_for(g_bg_color, SDL_Color{0,0,0,255}, SDL_Color{255,255,255,255});
+    }
     draw_ring(outer, /*offset=*/t_in, /*thick=*/t_out);
 }
 
@@ -239,26 +298,40 @@ void render_keys(SDL_Renderer* renderer, TTF_Font* font, int highlighted_index) 
 
         SDL_Color uiFG = best_bw_for_bg(g_bg_color); // melhor preto/branco contra o fundo atual
 
-        // Outline fino externo
+        // --- Outline externo (contorno fino do retângulo da tecla) -----------------
         if (i < 10) {
-            // Numéricos: cinza médio fixo
+            // Teclas numéricas: mantém cinza médio
             SDL_SetRenderDrawColor(renderer, 128, 128, 128, 255);
         } else {
-            // Ação (Confirma/Corrige/Branco):
-            SDL_Color outline = uiFG; // sem destaque → segue contraste com o fundo
+            // Teclas de ação: Confirma, Corrige, Branco
+            SDL_Color outline;
+
             if (highlighted_index == static_cast<int>(i)) {
-                // em destaque: contrasta com o ANEL INTERNO (preto↔branco)
-                const SDL_Color inner = pick_inner_ring(keys[i].color);
-                const bool innerIsWhite = (inner.r==255 && inner.g==255 && inner.b==255);
-                outline = innerIsWhite ? SDL_Color{0,0,0,255} : SDL_Color{255,255,255,255};
+                // Em DESTAQUE: contraste com a BORDA INTERNA do realce.
+                // 1) Obtém a cor do anel interno (já adaptada à cor da tecla):
+                SDL_Color inner = pick_inner_ring_color(keys[i].color);
+
+                // 2) Escolhe a "outra" cor do par para o outline externo:
+                if (g_hc_option == 3) {
+                    // HC3: usa par (HC3_DARK, HC3_LIGHT)
+                    outline = other_in_pair(inner, HC3_DARK, HC3_LIGHT);
+                } else {
+                    // HC1/HC2: PB
+                    outline = other_in_pair(inner, SDL_Color{0,0,0,255}, SDL_Color{255,255,255,255});
+                }
+            } else {
+                // SEM DESTAQUE: contraste com o FUNDO (fundo claro → outline escuro; fundo escuro → outline claro)
+                outline = pick_outline_vs_bg(g_bg_color);
             }
+
             SDL_SetRenderDrawColor(renderer, outline.r, outline.g, outline.b, 255);
         }
         SDL_RenderDrawRect(renderer, &keys[i].rect);
 
-        // Cor do texto: Branco para botões numéricos, Preto para botões de ação
-        const SDL_Color textColor = best_text_bw_for_fill(keys[i].color);
+        // Cor do texto coerente com a paleta atual (HC3 usa HC3_DARK↔HC3_LIGHT)
+        const SDL_Color textColor = pick_text_for_fill(keys[i].color);
         draw_text(renderer, font, keys[i].label.c_str(), keys[i].rect, textColor);
+
 
         // Destacar tecla selecionada com borda dupla de alto contraste
         if (highlighted_index == static_cast<int>(i)) {
