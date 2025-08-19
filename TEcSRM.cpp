@@ -54,17 +54,18 @@ int show_main_menu(SDL_Renderer* renderer)
             optionC  = {startX, startY + btnH + gap,                 btnW, btnH};
             settings = {startX, startY + 2 * (btnH + gap),           btnW, btnH};
 
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-            SDL_RenderClear(renderer);
+            clear_with_bg(renderer);
 
-            SDL_SetRenderDrawColor(renderer,   0,   0,   0, 255);
+            SDL_Color uiFG = (g_bg_color.r + g_bg_color.g + g_bg_color.b >= 384) ? BLACK : WHITE;
+
+            SDL_SetRenderDrawColor(renderer, uiFG.r, uiFG.g, uiFG.b, 255);
             SDL_RenderDrawRect(renderer, &optionB);
             SDL_RenderDrawRect(renderer, &optionC);
             SDL_RenderDrawRect(renderer, &settings);
 
-            draw_text(renderer, font, "Solução B (Varredura Automática)", optionB,  BLACK);
-            draw_text(renderer, font, "Solução C (Mouse Adaptado)",       optionC,  BLACK);
-            draw_text(renderer, font, "Configurações",                    settings, BLACK);
+            draw_text(renderer, font, "Solução B (Varredura Automática)", optionB,  uiFG);
+            draw_text(renderer, font, "Solução C (Mouse Adaptado)",       optionC,  uiFG);
+            draw_text(renderer, font, "Configurações",                    settings, uiFG);
 
             SDL_RenderPresent(renderer);
             needs_redraw = false;

@@ -14,6 +14,73 @@ vector<Key> keys = {
     {"Confirma", CONFIRMA_GREEN}, {"Corrige", CORRIGE_ORANGE}, {"Branco", WHITE}
 };
 
+// Cor de fundo (parte da paleta). Começa branco na paleta padrão.
+SDL_Color g_bg_color = {255, 255, 255, 255};
+
+void clear_with_bg(SDL_Renderer* r) {
+    SDL_SetRenderDrawColor(r, g_bg_color.r, g_bg_color.g, g_bg_color.b, 255);
+    SDL_RenderClear(r);
+}
+
+int g_hc_option = 1;  // começa na paleta padrão
+
+void set_palette_default() {
+    // Reaplica as cores padrão às teclas
+    for (auto &k : keys) {
+        if (k.label == "Confirma") {
+            k.color = CONFIRMA_GREEN;      // #50A25D
+        } else if (k.label == "Corrige") {
+            k.color = CORRIGE_ORANGE;      // #E96501
+        } else if (k.label == "Branco") {
+            k.color = WHITE;
+        } else {
+            // dígitos 0–9 (e outras neutras)
+            k.color = BLACK;
+        }
+    }
+    // Fundo faz parte da paleta
+    g_bg_color = WHITE;
+
+    g_hc_option = 1;
+    SDL_Log("Paleta aplicada: Padrão (inclui fundo branco).");
+}
+
+void set_palette_inverted() {
+    // Teclas: inverter preto↔branco; manter Confirma/Corrige.
+    for (auto &k : keys) {
+        if (k.label == "Confirma") {
+            k.color = CONFIRMA_GREEN;          // mantém
+        } else if (k.label == "Corrige") {
+            k.color = CORRIGE_ORANGE;          // mantém
+        } else if (k.label == "Branco") {
+            k.color = BLACK;                   // era branco → vira preto
+        } else {
+            // dígitos 0–9 (eram pretos) → viram brancos
+            k.color = WHITE;
+        }
+    }
+    // Fundo da paleta invertida: preto
+    g_bg_color = BLACK;
+
+    g_hc_option = 2;
+    SDL_Log("Paleta: Alto Contraste 2 (invertida) aplicada.");
+}
+
+void set_palette_hc3() {
+    // Teclas: manter cores de ação; mapear preto→HC3_DARK, branco→HC3_LIGHT
+    for (auto &k : keys) {
+        if (k.label == "Confirma")      k.color = CONFIRMA_GREEN;
+        else if (k.label == "Corrige")  k.color = CORRIGE_ORANGE;
+        else if (k.label == "Branco")   k.color = HC3_LIGHT; // substituto do branco
+        else                            k.color = HC3_DARK;  // dígitos etc. (substituto do preto)
+    }
+    // Fundo claro (substituto do branco)
+    g_bg_color = HC3_LIGHT;
+
+    g_hc_option = 3;
+    SDL_Log("Paleta: Alto Contraste 3 (colorido) aplicada.");
+}
+
 // Implementação da função `send_key`
 void send_key(Display* display, Window target_window, KeySym keysym) {
     KeyCode keycode = XKeysymToKeycode(display, keysym);
@@ -71,12 +138,29 @@ void draw_text(SDL_Renderer* renderer, TTF_Font* font, const string& text, SDL_R
 static inline double srgb_to_linear(double c) {
     return (c <= 0.04045) ? (c/12.92) : pow((c+0.055)/1.055, 2.4);
 }
+
 static inline double rel_lum(SDL_Color c) {
     const double R = srgb_to_linear(c.r/255.0);
     const double G = srgb_to_linear(c.g/255.0);
     const double B = srgb_to_linear(c.b/255.0);
     return 0.2126*R + 0.7152*G + 0.0722*B;
 }
+
+static inline SDL_Color best_text_bw_for_fill(SDL_Color fill) {
+    const double L = rel_lum(fill);
+    const double cBlack = (L + 0.05) / 0.05;        // contraste do PRETO sobre 'fill'
+    const double cWhite = 1.05 / (L + 0.05);        // contraste do BRANCO sobre 'fill'
+    return (cBlack >= cWhite) ? SDL_Color{0,0,0,255} : SDL_Color{255,255,255,255};
+}
+
+static SDL_Color best_bw_for_bg(SDL_Color bg) {
+    // escolhe preto ou branco com maior contraste contra o fundo
+    const double Lbg = rel_lum(bg);
+    const double cBlack = (std::max(Lbg, 0.0) + 0.05) / (0.0 + 0.05);  // Lpreto=0
+    const double cWhite = (1.0 + 0.05) / (std::min(Lbg, 1.0) + 0.05);  // Lbranco=1
+    return (cBlack >= cWhite) ? SDL_Color{0,0,0,255} : SDL_Color{255,255,255,255};
+}
+
 static inline SDL_Color pick_inner_ring(SDL_Color fill) {
     // Se a tecla é clara, use borda interna preta; se é escura, borda interna branca
     return (rel_lum(fill) >= 0.5) ? SDL_Color{0,0,0,255} : SDL_Color{255,255,255,255};
@@ -86,37 +170,24 @@ static inline SDL_Rect inflate(SDL_Rect r, int d) {
     return SDL_Rect{ r.x - d, r.y - d, r.w + 2*d, r.h + 2*d };
 }
 
-// Desenha borda dupla usando 4 retângulos por anel.
-// - Anel interno (encostado na tecla): preto ou branco conforme a cor da tecla.
-// - Anel externo (mais afastado): sempre preto (garante contraste com o fundo branco).
+// Borda dupla por 4 retângulos (interno + externo).
+// Interno: preto/branco conforme sua lógica (ou fixa branca, se você decidiu assim).
+// EXTERNO: preto ou branco, escolhido para maximizar contraste com o FUNDO atual (paleta).
 static void draw_focus_border_rects(SDL_Renderer* r, SDL_Rect key, SDL_Color keyFill) {
-    // espessuras escaláveis, mínimo 2 px reais
-    const int t_in  = (int)lround(SZ(5)); // anel interno
-    const int t_out = (int)lround(SZ(5)); // anel externo
+    const int t_in  = (int)std::lround(SZ(5));
+    const int t_out = (int)std::lround(SZ(5));
 
     auto draw_ring = [&](SDL_Color col, int offset, int thick) {
         SDL_SetRenderDrawColor(r, col.r, col.g, col.b, 255);
 
-        // TOP
-        SDL_Rect top{ key.x - offset - thick,
-                      key.y - offset - thick,
-                      key.w + 2*(offset + thick),
-                      thick };
-        // BOTTOM
-        SDL_Rect bottom{ key.x - offset - thick,
-                         key.y + key.h + offset,
-                         key.w + 2*(offset + thick),
-                         thick };
-        // LEFT
-        SDL_Rect left{ key.x - offset - thick,
-                       key.y - offset,
-                       thick,
-                       key.h + 2*offset };
-        // RIGHT
-        SDL_Rect right{ key.x + key.w + offset,
-                        key.y - offset,
-                        thick,
-                        key.h + 2*offset };
+        SDL_Rect top    { key.x - offset - thick, key.y - offset - thick,
+                          key.w + 2*(offset + thick), thick };
+        SDL_Rect bottom { key.x - offset - thick, key.y + key.h + offset,
+                          key.w + 2*(offset + thick), thick };
+        SDL_Rect left   { key.x - offset - thick, key.y - offset,
+                          thick, key.h + 2*offset };
+        SDL_Rect right  { key.x + key.w + offset, key.y - offset,
+                          thick, key.h + 2*offset };
 
         SDL_RenderFillRect(r, &top);
         SDL_RenderFillRect(r, &bottom);
@@ -124,20 +195,21 @@ static void draw_focus_border_rects(SDL_Renderer* r, SDL_Rect key, SDL_Color key
         SDL_RenderFillRect(r, &right);
     };
 
-    const bool isWhiteKey = (keyFill.r == 255 && keyFill.g == 255 && keyFill.b == 255);
-    const SDL_Color inner = isWhiteKey ? SDL_Color{0,0,0,255} : SDL_Color{255,255,255,255};
+    // --- sua lógica para o ANEL INTERNO (ex.: adaptação simples) -------------
+    // Branco por padrão, mas se a tecla for branca usamos preto:
+    const SDL_Color inner = pick_inner_ring(keyFill); // preto p/ fill claro; branco p/ fill escuro
 
-    // 1) Anel interno (encostado na tecla)
-    draw_ring(inner, /*offset=*/0, /*thick=*/t_in);
+    // 1) ANEL INTERNO (encostado na tecla)
+    draw_ring(inner, /*offset=*/0,    /*thick=*/t_in);
 
-    // 2) Anel externo preto, afastado por t_in
-    draw_ring(SDL_Color{0,0,0,255}, /*offset=*/t_in, /*thick=*/t_out);
+    // 2) ANEL EXTERNO — escolhe preto OU branco p/ maximizar contraste com o FUNDO atual
+    const SDL_Color outer = best_bw_for_bg(g_bg_color);
+    draw_ring(outer, /*offset=*/t_in, /*thick=*/t_out);
 }
 
 // Renderiza as teclas na tela com bordas e efeito de destaque
 void render_keys(SDL_Renderer* renderer, TTF_Font* font, int highlighted_index) {
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    SDL_RenderClear(renderer);
+    clear_with_bg(renderer);
 
     int winW, winH;
     SDL_GetRendererOutputSize(renderer, &winW, &winH);
@@ -165,12 +237,28 @@ void render_keys(SDL_Renderer* renderer, TTF_Font* font, int highlighted_index) 
         SDL_SetRenderDrawColor(renderer, keys[i].color.r, keys[i].color.g, keys[i].color.b, keys[i].color.a);
         SDL_RenderFillRect(renderer, &keys[i].rect);
 
-        if (i < 10) SDL_SetRenderDrawColor(renderer, 128, 128, 128, 255);  // Cinza médio para botões numéricos
-        else SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);  // Preto para botões de ação
+        SDL_Color uiFG = best_bw_for_bg(g_bg_color); // melhor preto/branco contra o fundo atual
+
+        // Outline fino externo
+        if (i < 10) {
+            // Numéricos: cinza médio fixo
+            SDL_SetRenderDrawColor(renderer, 128, 128, 128, 255);
+        } else {
+            // Ação (Confirma/Corrige/Branco):
+            SDL_Color outline = uiFG; // sem destaque → segue contraste com o fundo
+            if (highlighted_index == static_cast<int>(i)) {
+                // em destaque: contrasta com o ANEL INTERNO (preto↔branco)
+                const SDL_Color inner = pick_inner_ring(keys[i].color);
+                const bool innerIsWhite = (inner.r==255 && inner.g==255 && inner.b==255);
+                outline = innerIsWhite ? SDL_Color{0,0,0,255} : SDL_Color{255,255,255,255};
+            }
+            SDL_SetRenderDrawColor(renderer, outline.r, outline.g, outline.b, 255);
+        }
         SDL_RenderDrawRect(renderer, &keys[i].rect);
 
         // Cor do texto: Branco para botões numéricos, Preto para botões de ação
-        draw_text(renderer, font, keys[i].label, keys[i].rect, (i < 10) ? WHITE : BLACK);
+        const SDL_Color textColor = best_text_bw_for_fill(keys[i].color);
+        draw_text(renderer, font, keys[i].label.c_str(), keys[i].rect, textColor);
 
         // Destacar tecla selecionada com borda dupla de alto contraste
         if (highlighted_index == static_cast<int>(i)) {
