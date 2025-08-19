@@ -40,6 +40,12 @@ extern TTF_Font* font;   // fonte global, ajustada por reload_font()
 extern SDL_Color g_bg_color;     // cor de fundo atual (parte da paleta)
 extern int g_hc_option;          // 1, 2, 3... (1 = padrão)
 
+// Velocidade de varredura global (1..5). 3 é o padrão.
+extern int g_scan_speed;
+
+// Intervalo (ms) calculado a partir da velocidade atual.
+Uint32 scan_interval_ms();
+
 void set_palette_default();      // aplica a paleta padrão nas teclas
 
 void set_palette_inverted();  // <<< NOVA

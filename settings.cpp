@@ -84,8 +84,6 @@ int run_settings(SDL_Renderer* renderer)
 
     int idxCursor = 0;  // default = 1 (posição 0 do array CURSOR_SIZES)
 
-    int scan_speed = 3; // placeholder (1..5) - somente UI
-
     bool needs_redraw = true;
     SDL_Event ev;
 
@@ -137,7 +135,7 @@ int run_settings(SDL_Renderer* renderer)
             const int curGroupH = max(cH, BTN_SIZE);
 
             // Linha 2 (placeholder): Velocidade de varredura — mesmo padrão do Zoom [texto][+][−]
-            string spdStr = "Velocidade de Varredura: " + to_string(scan_speed);
+            string spdStr = "Velocidade de Varredura: " + to_string(g_scan_speed);
             int spdW = 0, spdH = 0;
             TTF_SizeUTF8(font, spdStr.c_str(), &spdW, &spdH);
 
@@ -282,10 +280,10 @@ int run_settings(SDL_Renderer* renderer)
                 }
 
                 // Placeholder da Velocidade (1..5)
-                else if (hit_rect(mx, my, btnSpdPlus) && scan_speed < 5) {
-                    ++scan_speed; needs_redraw = true;
-                } else if (hit_rect(mx, my, btnSpdMinus) && scan_speed > 1) {
-                    --scan_speed; needs_redraw = true;
+                else if (hit_rect(mx, my, btnSpdPlus) && g_scan_speed < 5) {
+                    ++g_scan_speed; needs_redraw = true;
+                } else if (hit_rect(mx, my, btnSpdMinus) && g_scan_speed > 1) {
+                    --g_scan_speed; needs_redraw = true;
                 }
 
                 // Placeholders Alto Contraste (por enquanto, só logam)

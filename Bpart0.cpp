@@ -33,8 +33,6 @@ struct Scanner {
 // Ponteiro global para o scanner (inicializado em `run_solution_b`)
 Scanner* scanner = nullptr;
 
-constexpr Uint32 INTERVAL = 1000;  // Intervalo de 1 segundo por tecla
-
 // Enviar comandos de acordo com a tecla e fazer a borda piscar 3 vezes
 void process_key(Display* display, Window target_window, const string& key, SDL_Renderer* renderer) {
     XSetInputFocus(display, target_window, RevertToParent, CurrentTime);
@@ -104,7 +102,7 @@ int run_scanning(Display* display, Window target_window, SDL_Renderer* renderer)
             }
         }
 
-        if (SDL_GetTicks() - last_time >= INTERVAL) {
+        if (SDL_GetTicks() - last_time >= scan_interval_ms()) {
             scanner->current_index = (scanner->current_index + 1) % keys.size();
             last_time = SDL_GetTicks();
         }

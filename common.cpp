@@ -7,6 +7,8 @@ using namespace std;
 
 int g_scale_pct = 100;            // começa em 100 %
 
+int g_scan_speed = 3; // padrão = 3
+
 // Definição única do vetor keys (evita múltiplas definições)
 vector<Key> keys = {
     {"0", BLACK}, {"1", BLACK}, {"2", BLACK}, {"3", BLACK}, {"4", BLACK},
@@ -79,6 +81,18 @@ void set_palette_hc3() {
 
     g_hc_option = 3;
     SDL_Log("Paleta: Alto Contraste 3 (colorido) aplicada.");
+}
+
+Uint32 scan_interval_ms() {
+    // 1→1750ms, 2→1500ms, 3→1250ms, 4→1000ms, 5→750ms
+    int v = std::clamp(g_scan_speed, 1, 5);
+    switch (v) {
+        case 1: return 1750;
+        case 2: return 1500;
+        case 3: return 1250;
+        case 4: return 1000;
+        default: return  750; // v == 5
+    }
 }
 
 // Implementação da função `send_key`
