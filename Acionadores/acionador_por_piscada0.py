@@ -42,6 +42,14 @@ EYE_AR_THRESH = 0.17
 EYE_AR_CONSEC_FRAMES = 8
 CLICK_COOLDOWN = 1.5   # segundos (fixo)
 
+# === GUI (trackbars) ===
+THRESH_MAX = 100      # representa 1.00 (usaremos valor/100.0)
+FRAMES_MAX = 60       # limite superior do slider (ajuste à vontade)
+
+# posições iniciais dos sliders, coerentes com as constantes acima
+th_init = int(round(EYE_AR_THRESH * 100))
+fr_init = max(1, min(EYE_AR_CONSEC_FRAMES, FRAMES_MAX))
+
 # initialize the frame counters and the total number of blinks
 COUNTER = 0
 TOTAL = 0
@@ -68,6 +76,15 @@ else:
 	fileStream = False
 time.sleep(1.0)  # warmup
 
+# criar a janela explicitamente e anexar os trackbars nela
+cv2.namedWindow("Frame")
+cv2.createTrackbar("EAR x100", "Frame", th_init, THRESH_MAX, lambda v: None)
+cv2.createTrackbar("Tempo", "Frame", fr_init, FRAMES_MAX, lambda v: None)
+
+# para feedback no terminal quando o usuário mover o slider
+_last_th = th_init
+_last_fr = fr_init
+
 # loop over frames from the video stream
 while True:
 	# if this is a file video stream, then we need to check if
@@ -84,6 +101,23 @@ while True:
 	
 	frame = imutils.resize(frame, width=450)
 	gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+	# ler valores atuais dos trackbars e atualizar parâmetros
+	_th_val = cv2.getTrackbarPos("EAR x100", "Frame")
+	_fr_val = cv2.getTrackbarPos("Tempo", "Frame")
+
+	# garantir domínios válidos
+	_th_val = np.clip(_th_val, 0, THRESH_MAX)
+	_fr_val = max(1, _fr_val)
+
+	# aplicar aos parâmetros usados pelo algoritmo
+	EYE_AR_THRESH = _th_val / 100.0               # float com duas casas (passo 0.01)
+	EYE_AR_CONSEC_FRAMES = int(_fr_val)           # natural >= 1
+
+	# feedback no terminal apenas quando mudar
+	if _th_val != _last_th or _fr_val != _last_fr:
+		print(f"[PARAM] EYE_AR_THRESH={EYE_AR_THRESH:.2f}  |  EYE_AR_CONSEC_FRAMES={EYE_AR_CONSEC_FRAMES}", flush=True)
+		_last_th, _last_fr = _th_val, _fr_val
 
 	# detect faces in the grayscale frame
 	rects = detector(gray, 0)
@@ -140,7 +174,7 @@ while True:
 			cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 		cv2.putText(frame, "EAR: {:.2f}".format(ear), (300, 30),
 			cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
- 
+
 	# show the frame
 	cv2.imshow("Frame", frame)
 	key = cv2.waitKey(1) & 0xFF
