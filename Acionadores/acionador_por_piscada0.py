@@ -10,6 +10,14 @@ import time
 import dlib
 import cv2
 import pyautogui
+import sys, os
+
+def resource_path(rel_path: str) -> str:
+    # Usa a pasta do próprio script (robusto ao abrir por atalho/pythonw)
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, rel_path)
+
+DEBUG = False  # desliga prints por padrão (ligue com --debug)
 
 def eye_aspect_ratio(eye):
 	# compute the euclidean distances between the two sets of
@@ -29,11 +37,31 @@ def eye_aspect_ratio(eye):
 
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
-ap.add_argument("-p", "--shape-predictor", required=True,
-	help="path to facial landmark predictor")
+ap.add_argument("-p", "--shape-predictor", 
+	default=resource_path("shape_predictor_68_face_landmarks.dat"),
+	help="path to facial landmark predictor (default: arquivo empacotado/ao lado do exe)")
 ap.add_argument("-v", "--video", type=str, default="",
 	help="path to input video file")
+ap.add_argument("--debug", action="store_true", 
+	help="mostra logs no console")
 args = vars(ap.parse_args())
+DEBUG = args["debug"]
+
+# Verificação amigável (sem console) se o preditor não existir
+if not os.path.exists(args["shape_predictor"]):
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+        tk.Tk().withdraw()
+        messagebox.showerror(
+            "Acionador por Piscada",
+            "Arquivo do preditor não foi encontrado:\n"
+            f"{args['shape_predictor']}\n\n"
+            "Coloque 'shape_predictor_68_face_landmarks.dat' ao lado do executável "
+            "ou forneça o caminho pelo parâmetro -p."
+        )
+    finally:
+        sys.exit(1)
 
 # define two constants, one for the eye aspect ratio to indicate
 # blink and then a second constant for the number of consecutive
@@ -57,7 +85,7 @@ last_click_ts = 0.0
 
 # initialize dlib's face detector (HOG-based) and then create
 # the facial landmark predictor
-print("[INFO] loading facial landmark predictor...")
+if DEBUG: print("[INFO] loading facial landmark predictor...", flush=True)
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor(args["shape_predictor"])
 
@@ -67,7 +95,7 @@ predictor = dlib.shape_predictor(args["shape_predictor"])
 (rStart, rEnd) = face_utils.FACIAL_LANDMARKS_IDXS["right_eye"]
 
 # start the video stream (file OR webcam)
-print("[INFO] starting video stream thread...")
+if DEBUG: print("[INFO] starting video stream thread...", flush=True)
 if args["video"]:
 	vs = FileVideoStream(args["video"]).start()
 	fileStream = True
@@ -116,7 +144,8 @@ while True:
 
 	# feedback no terminal apenas quando mudar
 	if _th_val != _last_th or _fr_val != _last_fr:
-		print(f"[PARAM] EYE_AR_THRESH={EYE_AR_THRESH:.2f}  |  EYE_AR_CONSEC_FRAMES={EYE_AR_CONSEC_FRAMES}", flush=True)
+		if DEBUG:
+			print(f"[PARAM] EYE_AR_THRESH={EYE_AR_THRESH:.2f}  |  EYE_AR_CONSEC_FRAMES={EYE_AR_CONSEC_FRAMES}", flush=True)
 		_last_th, _last_fr = _th_val, _fr_val
 
 	# detect faces in the grayscale frame
@@ -163,7 +192,8 @@ while True:
 				if (now - last_click_ts) >= CLICK_COOLDOWN:
 					pyautogui.click()          # clique esquerdo padrão
 					last_click_ts = now
-					print(f"[CLICK] {time.strftime('%H:%M:%S')} | TOTAL={TOTAL}", flush=True)
+					if DEBUG:
+						print(f"[CLICK] {time.strftime('%H:%M:%S')} | TOTAL={TOTAL}", flush=True)
 
 			# reset the eye frame counter
 			COUNTER = 0
