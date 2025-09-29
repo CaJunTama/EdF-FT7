@@ -1,0 +1,24 @@
+apt-get install -y default-jre
+vi /etc/apt/sources.list
+apt-get update
+apt-get install java
+java --version
+apt-get install -y git
+apt install -y autotools-dev automake
+apt install -y make
+apt-get install -y default-jdk
+
+mkdir verificatum
+cd verificatum/
+git clone https://github.com/verificatum/verificatum-vcr
+git clone https://github.com/verificatum/verificatum-vmn
+cd verificatum-vcr/
+make -f Makefile.build
+./configure
+make
+sudo make install
+cd ../verificatum-vmn/
+make -f Makefile.build
+./configure
+make
+sudo make install
