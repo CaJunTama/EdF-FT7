@@ -1,3 +1,1 @@
-primeira versão
-
-sem implementação de melhorias
+versão antes da implementação de melhorias
