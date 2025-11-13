@@ -1,0 +1,1 @@
+fullscreen + mudanças na UI
