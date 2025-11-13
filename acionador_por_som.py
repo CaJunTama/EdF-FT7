@@ -15,7 +15,6 @@ DURACAO_ANALISE = 0.3                # Janela de tempo para escuta
 sample_rate = 44100
 ultimo_clique = 0
 
-
 def detectar_som(indata, frames, time_info, status):
     global ultimo_clique
 
