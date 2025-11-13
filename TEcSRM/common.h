@@ -1,0 +1,62 @@
+#ifndef COMMON_H
+#define COMMON_H
+
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
+#include <X11/Xlib.h>
+#include <X11/keysym.h>
+#include <iostream>
+#include <vector>
+#include <string>
+#include <cmath>
+
+using namespace std;
+
+// Estrutura de teclas e suas cores
+struct Key {
+    string label;
+    SDL_Color color;
+    SDL_Rect rect;
+};
+
+// Definição das cores
+constexpr SDL_Color BLACK = {0, 0, 0, 255};
+constexpr SDL_Color WHITE = {255, 255, 255, 255};
+constexpr SDL_Color CONFIRMA_GREEN = {80, 162, 93, 255};
+constexpr SDL_Color CORRIGE_ORANGE = {233, 101, 1, 255};
+
+// Opção 3: Alto Contraste Colorido
+constexpr SDL_Color HC3_LIGHT = {255, 247, 230, 255}; // #FFF7E6
+constexpr SDL_Color HC3_DARK  = { 19,  41,  75, 255}; // #13294B
+
+// Declaração do vetor keys
+extern vector<Key> keys;
+extern int g_scale_pct;                           // 100,125,150,175,200 …
+template<typename T>
+inline double SZ(T v) { return v * g_scale_pct / 100.0; }   // valor exato
+extern TTF_Font* font;   // fonte global, ajustada por reload_font()
+
+// ---- Paletas de cor e fundo / Alto Contraste --------------------------------------
+extern SDL_Color g_bg_color;     // cor de fundo atual (parte da paleta)
+extern int g_hc_option;          // 1, 2, 3... (1 = padrão)
+
+void set_palette_default();      // aplica a paleta padrão nas teclas
+
+void set_palette_inverted();  // <<< NOVA
+
+void set_palette_hc3(); // aplica a paleta colorida (Opção 3)
+
+void clear_with_bg(SDL_Renderer* r); // limpa o renderer com a cor de fundo atual
+
+// Função para enviar eventos de tecla ao simulador da urna eletrônica
+void send_key(Display* display, Window target_window, KeySym keysym);
+
+// Função para desenhar texto centralizado
+void draw_text(SDL_Renderer* renderer, TTF_Font* font, const string& text, SDL_Rect rect, SDL_Color color);
+
+// Renderiza as teclas na tela com bordas e efeito de destaque
+void render_keys(SDL_Renderer* renderer, TTF_Font* font, int highlighted_index = -1);
+
+bool reload_font();            // recarrega a fonte no tamanho BASE × g_scale
+
+#endif // COMMON_H
